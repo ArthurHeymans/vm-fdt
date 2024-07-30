@@ -359,7 +359,10 @@ impl FdtWriter {
         // The unit adddress part of the node name, if present, is not fully validated
         // since the exact requirements depend on the bus mapping.
         // https://devicetree-specification.readthedocs.io/en/stable/devicetree-basics.html#node-name-requirements
-        if !node_name_valid(name) {
+        if !(node_name_valid(name)
+            || self.node_depth == 0
+                && name_cstr == CString::new("/").map_err(|_| Error::InvalidString)?)
+        {
             return Err(Error::InvalidNodeName);
         }
         self.append_u32(FDT_BEGIN_NODE);
@@ -586,6 +589,43 @@ mod tests {
             0x00, 0x00, 0x00, 0x09, // 0044: FDT_END
         ];
         assert_eq!(expected_fdt, actual_fdt);
+    }
+
+    #[test]
+    fn forward_slash_as_root() {
+        let mut fdt = FdtWriter::new().unwrap();
+        let root_node = fdt.begin_node("/").unwrap();
+        fdt.end_node(root_node).unwrap();
+        let actual_fdt = fdt.finish().unwrap();
+        println!("{:x?}", actual_fdt);
+        let expected_fdt = vec![
+            0xd0, 0x0d, 0xfe, 0xed, // 0000: magic (0xd00dfeed)
+            0x00, 0x00, 0x00, 0x48, // 0004: totalsize (0x48)
+            0x00, 0x00, 0x00, 0x38, // 0008: off_dt_struct (0x38)
+            0x00, 0x00, 0x00, 0x48, // 000C: off_dt_strings (0x48)
+            0x00, 0x00, 0x00, 0x28, // 0010: off_mem_rsvmap (0x28)
+            0x00, 0x00, 0x00, 0x11, // 0014: version (0x11 = 17)
+            0x00, 0x00, 0x00, 0x10, // 0018: last_comp_version (0x10 = 16)
+            0x00, 0x00, 0x00, 0x00, // 001C: boot_cpuid_phys (0)
+            0x00, 0x00, 0x00, 0x00, // 0020: size_dt_strings (0)
+            0x00, 0x00, 0x00, 0x10, // 0024: size_dt_struct (0x10)
+            0x00, 0x00, 0x00, 0x00, // 0028: rsvmap terminator (address = 0 high)
+            0x00, 0x00, 0x00, 0x00, // 002C: rsvmap terminator (address = 0 low)
+            0x00, 0x00, 0x00, 0x00, // 0030: rsvmap terminator (size = 0 high)
+            0x00, 0x00, 0x00, 0x00, // 0034: rsvmap terminator (size = 0 low)
+            0x00, 0x00, 0x00, 0x01, // 0038: FDT_BEGIN_NODE
+            0x2f, 0x00, 0x00, 0x00, // 003C: node name ("/") + padding
+            0x00, 0x00, 0x00, 0x02, // 0040: FDT_END_NODE
+            0x00, 0x00, 0x00, 0x09, // 0044: FDT_END
+        ];
+        assert_eq!(expected_fdt, actual_fdt);
+    }
+
+    #[test]
+    fn forward_slash_as_non_root() {
+        let mut fdt = FdtWriter::new().unwrap();
+        let _root_node = fdt.begin_node("").unwrap();
+        assert_eq!(fdt.begin_node("/").unwrap_err(), Error::InvalidNodeName);
     }
 
     #[test]

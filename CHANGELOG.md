@@ -1,3 +1,8 @@
+# Upcoming release
+## Fixed
+- [[#73]](https://github.com/rust-vmm/vm-fdt/issues/73) Allow root nodes
+  with the name "/"
+
 # v0.3.0
 
 ## Added
